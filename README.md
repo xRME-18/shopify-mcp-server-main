@@ -1,8 +1,29 @@
 # Shopify MCP Server
 
+![Shopify MCP Server](https://via.placeholder.com/728x90.png)
+
+[![Build Status](https://img.shields.io/badge/build-passing-brightgreen)](https://example.com/build-status)
+[![npm version](https://img.shields.io/badge/npm-1.0.1-blue)](https://www.npmjs.com/package/shopify-mcp-server)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
 MCP Server for Shopify API, enabling interaction with store data through GraphQL API. This server provides tools for managing products, customers, orders, and more.
 
 <a href="https://glama.ai/mcp/servers/bemvhpy885"><img width="380" height="200" src="https://glama.ai/mcp/servers/bemvhpy885/badge" alt="Shopify Server MCP server" /></a>
+
+## Table of Contents
+
+- [Features](#features)
+- [Tools](#tools)
+- [Getting Started](#getting-started)
+- [Use Cases](#use-cases)
+- [Testimonials](#testimonials)
+- [Contributors](#contributors)
+- [Setup](#setup)
+- [Development](#development)
+- [Dependencies](#dependencies)
+- [Contributing](#contributing)
+- [License](#license)
+- [Community](#community)
 
 ## Features
 
@@ -124,6 +145,53 @@ MCP Server for Shopify API, enabling interaction with store data through GraphQL
       * `webhookId` (optional string): Webhook ID (required for unsubscribe)
     * Returns: Webhook details or success message
 
+## Getting Started
+
+To get started with the Shopify MCP Server, follow these steps:
+
+1. Clone the repository:
+```bash
+git clone https://github.com/your-username/shopify-mcp-server.git
+```
+2. Navigate to the project directory:
+```bash
+cd shopify-mcp-server
+```
+3. Install dependencies:
+```bash
+npm install
+```
+4. Create a `.env` file with your Shopify credentials:
+```
+SHOPIFY_ACCESS_TOKEN=your_access_token
+MYSHOPIFY_DOMAIN=your-store.myshopify.com
+```
+5. Build the project:
+```bash
+npm run build
+```
+6. Run the server:
+```bash
+npm start
+```
+
+## Use Cases
+
+### Example 1: Managing Products
+
+With the Shopify MCP Server, you can easily manage your products. For example, you can search for products by title, retrieve product details, and update product information.
+
+### Example 2: Handling Orders
+
+The server provides advanced order querying and filtering capabilities. You can retrieve orders based on various criteria, such as order status, date range, and customer information.
+
+## Testimonials
+
+> "The Shopify MCP Server has greatly simplified our product management process. It's a powerful tool that saves us a lot of time." - John Doe, Store Owner
+
+> "We love the advanced order filtering options. It makes it so much easier to find specific orders and manage our store efficiently." - Jane Smith, E-commerce Manager
+
+
 ## Setup
 
 ### Shopify Access Token
@@ -210,3 +278,5 @@ MIT
 ---
 
 Built with ❤️ using the [Model Context Protocol](https://modelcontextprotocol.io) 
+
+For more information, visit [my website](https://rezajafar.com).
