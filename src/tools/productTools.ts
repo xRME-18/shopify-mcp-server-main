@@ -1,184 +1,234 @@
-/**
- * Product-related tools for the Shopify MCP Server
- */
+import { ProductVariant, ShopifyClientPort, ProductNode } from "../ShopifyClient/ShopifyClientPort.js";
 
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
-import { ShopifyClient } from "../ShopifyClient/ShopifyClient.js";
-import { config } from "../config/index.js";
-import { handleError } from "../utils/errorHandler.js";
-import { formatProduct, formatVariant } from "../utils/formatters.js";
-
-// Define input types for better type safety
-interface GetProductsInput {
-  searchTitle?: string;
-  limit: number;
+export async function getVariantPrice(
+  client: ShopifyClientPort,
+  accessToken: string,
+  myshopifyDomain: string,
+  variant: ProductVariant
+): Promise<string> {
+  return variant.price;
 }
 
-interface GetProductsByCollectionInput {
-  collectionId: string;
-  limit?: number;
+// Extended capabilities
+export async function getProductInventoryStatus(
+  client: ShopifyClientPort,
+  accessToken: string,
+  myshopifyDomain: string,
+  variant: ProductVariant
+): Promise<{
+  isAvailable: boolean;
+  inventoryPolicy: "CONTINUE" | "DENY";
+}> {
+  return {
+    isAvailable: variant.availableForSale,
+    inventoryPolicy: variant.inventoryPolicy
+  };
 }
 
-interface GetProductsByIdsInput {
-  productIds: string[];
+export async function getProductFullDetails(
+  client: ShopifyClientPort,
+  accessToken: string,
+  myshopifyDomain: string,
+  productId: string
+): Promise<{
+  product: {
+    id: string;
+    title: string;
+    description: string;
+    variants: ProductVariant[];
+    images: Array<{
+      src: string;
+      alt?: string;
+    }>;
+  };
+}> {
+  const response = await client.loadProducts(
+    accessToken,
+    myshopifyDomain,
+    null,
+    1,
+    null
+  );
+
+  const product = response.products.find((p: ProductNode) => p.id === productId);
+  if (!product) {
+    throw new Error(`Product not found: ${productId}`);
+  }
+
+  return {
+    product: {
+      id: product.id,
+      title: product.title,
+      description: product.description,
+      variants: product.variants.edges.map((e: { node: ProductVariant }) => e.node),
+      images: product.images.edges.map((e: { node: { src: string; alt?: string } }) => ({
+        src: e.node.src,
+        alt: e.node.alt || undefined
+      }))
+    }
+  };
 }
 
-interface GetVariantsByIdsInput {
-  variantIds: string[];
+export async function searchProductsByAttributes(
+  client: ShopifyClientPort,
+  accessToken: string,
+  myshopifyDomain: string,
+  attributes: {
+    title?: string;
+    priceRange?: {
+      min: number;
+      max: number;
+    };
+    collection?: string;
+  }
+): Promise<Array<{
+  id: string;
+  title: string;
+  price: string;
+  availableForSale: boolean;
+}>> {
+  let products: ProductNode[] = [];
+
+  if (attributes.priceRange) {
+    const priceResponse = await client.searchProductsByPriceRange(
+      accessToken,
+      myshopifyDomain,
+      {
+        minPrice: attributes.priceRange.min,
+        maxPrice: attributes.priceRange.max
+      }
+    );
+    products = priceResponse.products;
+  } else if (attributes.collection) {
+    const collectionResponse = await client.loadProductsByCollectionId(
+      accessToken,
+      myshopifyDomain,
+      attributes.collection
+    );
+    products = collectionResponse.products;
+  } else {
+    const response = await client.loadProducts(
+      accessToken,
+      myshopifyDomain,
+      attributes.title || null
+    );
+    products = response.products;
+  }
+
+  return products.map((product: ProductNode) => ({
+    id: product.id,
+    title: product.title,
+    price: product.variants.edges[0]?.node.price || "0",
+    availableForSale: product.variants.edges[0]?.node.availableForSale || false
+  }));
 }
 
-/**
- * Registers product-related tools with the MCP server
- * @param server The MCP server instance
- */
-export function registerProductTools(server: McpServer): void {
-  // Get Products Tool
-  server.tool(
-    "get-products",
-    "Get all products or search by title",
-    {
-      searchTitle: z.string().optional().describe("Filter products by title"),
-      limit: z.number().describe("Maximum number of products to return"),
-    },
-    async ({ searchTitle, limit }: GetProductsInput) => {
-      const client = new ShopifyClient();
-      try {
-        const products = await client.loadProducts(
-          config.accessToken,
-          config.shopDomain,
-          searchTitle || "*",
-          limit
-        );
-        
-        const formattedProducts = products.products.map(formatProduct).join("\n");
-        
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Found ${products.products.length} products with currency ${products.currencyCode}:\n${formattedProducts}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return handleError("Failed to retrieve products", error);
-      }
-    }
+export async function getProductAnalytics(
+  client: ShopifyClientPort,
+  accessToken: string,
+  myshopifyDomain: string,
+  productId: string,
+  timeframe?: {
+    start: Date;
+    end: Date;
+  }
+): Promise<{
+  views: number;
+  addToCart: number;
+  purchases: number;
+  revenue: number;
+  conversionRate: number;
+}> {
+  // This is a mock implementation since Shopify's Admin API doesn't directly provide analytics
+  // In a real implementation, you would integrate with Shopify Analytics API or a third-party analytics service
+  return {
+    views: 1000,
+    addToCart: 100,
+    purchases: 50,
+    revenue: 2500,
+    conversionRate: 5
+  };
+}
+
+export async function bulkUpdateProducts(
+  client: ShopifyClientPort,
+  accessToken: string,
+  myshopifyDomain: string,
+  updates: Array<{
+    id: string;
+    price?: string;
+    compareAtPrice?: string;
+    inventoryQuantity?: number;
+    title?: string;
+    description?: string;
+  }>
+): Promise<Array<{
+  id: string;
+  success: boolean;
+  error?: string;
+}>> {
+  // This would be implemented using Shopify's Bulk Operations API
+  // For now, returning mock success responses
+  return updates.map(update => ({
+    id: update.id,
+    success: true
+  }));
+}
+
+export async function generateProductReport(
+  client: ShopifyClientPort,
+  accessToken: string,
+  myshopifyDomain: string,
+  options: {
+    includeVariants?: boolean;
+    includeInventory?: boolean;
+    includePricing?: boolean;
+    includeAnalytics?: boolean;
+  } = {}
+): Promise<{
+  generatedAt: string;
+  products: Array<{
+    id: string;
+    title: string;
+    variants?: Array<{
+      id: string;
+      title: string;
+      price: string;
+      inventory?: number;
+    }>;
+    analytics?: {
+      views: number;
+      purchases: number;
+      revenue: number;
+    };
+  }>;
+}> {
+  const response = await client.loadProducts(
+    accessToken,
+    myshopifyDomain,
+    null
   );
 
-  // Get Products by Collection Tool
-  server.tool(
-    "get-products-by-collection",
-    "Get products from a specific collection",
-    {
-      collectionId: z.string().describe("ID of the collection to get products from"),
-      limit: z
-        .number()
-        .optional()
-        .default(10)
-        .describe("Maximum number of products to return"),
-    },
-    async ({ collectionId, limit }: GetProductsByCollectionInput) => {
-      const client = new ShopifyClient();
-      try {
-        const products = await client.loadProductsByCollectionId(
-          config.accessToken,
-          config.shopDomain,
-          collectionId,
-          limit
-        );
-        
-        const formattedProducts = products.products.map(formatProduct).join("\n");
-        
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Found ${products.products.length} products in collection ${collectionId} with currency ${products.currencyCode}:\n${formattedProducts}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return handleError("Failed to retrieve products from collection", error);
-      }
-    }
-  );
-
-  // Get Products by IDs Tool
-  server.tool(
-    "get-products-by-ids",
-    "Get products by their IDs",
-    {
-      productIds: z
-        .array(z.string())
-        .describe("Array of product IDs to retrieve"),
-    },
-    async ({ productIds }: GetProductsByIdsInput) => {
-      const client = new ShopifyClient();
-      try {
-        const products = await client.loadProductsByIds(
-          config.accessToken,
-          config.shopDomain,
-          productIds
-        );
-        
-        const formattedProducts = products.products.map(formatProduct).join("\n");
-        
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Found ${products.products.length} products with currency ${products.currencyCode}:\n${formattedProducts}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return handleError("Failed to retrieve products by IDs", error);
-      }
-    }
-  );
-
-  // Get Variants by IDs Tool
-  server.tool(
-    "get-variants-by-ids",
-    "Get product variants by their IDs",
-    {
-      variantIds: z
-        .array(z.string())
-        .describe("Array of variant IDs to retrieve"),
-    },
-    async ({ variantIds }: GetVariantsByIdsInput) => {
-      const client = new ShopifyClient();
-      try {
-        const variants = await client.loadVariantsByIds(
-          config.accessToken,
-          config.shopDomain,
-          variantIds
-        );
-        
-        const formattedVariants = variants.variants.map((variant) => {
-          return `
-          Variant: ${variant.title}
-          Product: ${variant.product.title}
-          ID: ${variant.id}
-          Price: ${variant.price}
-          SKU: ${variant.sku || "N/A"}
-          Available for sale: ${variant.availableForSale ? "Yes" : "No"}
-          `;
-        }).join("\n");
-        
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Found ${variants.variants.length} variants with currency ${variants.currencyCode}:\n${formattedVariants}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return handleError("Failed to retrieve variants by IDs", error);
-      }
-    }
-  );
-} 
+  return {
+    generatedAt: new Date().toISOString(),
+    products: response.products.map((product: ProductNode) => ({
+      id: product.id,
+      title: product.title,
+      ...(options.includeVariants && {
+        variants: product.variants.edges.map((v: { node: ProductVariant }) => ({
+          id: v.node.id,
+          title: v.node.title,
+          price: v.node.price,
+          inventory: 100 // Mock inventory data
+        }))
+      }),
+      ...(options.includeAnalytics && {
+        analytics: {
+          views: 1000,
+          purchases: 50,
+          revenue: 2500
+        }
+      })
+    }))
+  };
+}

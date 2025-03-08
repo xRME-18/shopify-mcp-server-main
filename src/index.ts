@@ -16,8 +16,8 @@ import { registerWebhookTools } from "./tools/webhookTools.js";
  */
 async function main() {
   // Create the MCP server
-  const server = new McpServer({
-    name: "shopify-tools",
+const server = new McpServer({
+  name: "shopify-tools",
     version: "1.0.1",
   });
 
