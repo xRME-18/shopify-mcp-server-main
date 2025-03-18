@@ -205,6 +205,7 @@ export type ShopifyCustomCollectionsResponse = {
 };
 
 export type ShopifyCollectionsQueryParams = {
+  query: any;
   sinceId?: string;
   name?: string;
   limit: number;

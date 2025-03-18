@@ -23,6 +23,8 @@ export function handleError(
   error: unknown
 ): ErrorResponse {
   let errorMessage = defaultMessage;
+  const timestamp = new Date().toISOString();
+  const errorId = Math.random().toString(36).substring(7);
   
   if (error instanceof CustomError) {
     errorMessage = `${defaultMessage}: ${error.message}`;
@@ -39,15 +41,28 @@ export function handleError(
     if (error.innerError) {
       errorMessage += `\nInner Error: ${JSON.stringify(error.innerError, null, 2)}`;
     }
+
+    // Log detailed error information
+    console.error(`[${timestamp}] Error ID: ${errorId}`, {
+      message: errorMessage,
+      code: error.code,
+      contextData: error.contextData,
+      innerError: error.innerError,
+      stack: error.stack
+    });
   } else if (error instanceof Error) {
     errorMessage = `${defaultMessage}: ${error.message}`;
+    console.error(`[${timestamp}] Error ID: ${errorId}`, {
+      message: errorMessage,
+      stack: error.stack
+    });
   }
-  
-  // Log the error for debugging purposes
-  console.error("Error occurred:", error);
-  
+
   return {
-    content: [{ type: "text", text: errorMessage }],
+    content: [{ 
+      type: "text", 
+      text: `${errorMessage}\nError ID: ${errorId}` 
+    }],
     isError: true,
   };
 }
@@ -63,4 +78,4 @@ export function formatSuccess(data: any): {
   return {
     content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
   };
-} 
+}

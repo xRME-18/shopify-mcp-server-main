@@ -15,24 +15,58 @@ import { registerWebhookTools } from "./tools/webhookTools.js";
  * Initializes the server and registers all tools
  */
 async function main() {
-  // Create the MCP server
-const server = new McpServer({
-  name: "shopify-tools",
-    version: "1.0.1",
-  });
+  let server: McpServer | null = null;
 
-  // Register all tools
-  registerProductTools(server);
-  registerCustomerTools(server);
-  registerOrderTools(server);
-  registerShopTools(server);
-  registerDiscountTools(server);
-  registerWebhookTools(server);
+  async function shutdown(signal: string) {
+    console.error(`Received ${signal}. Shutting down gracefully...`);
+    if (server) {
+      try {
+        await server.disconnect();
+      } catch (error) {
+        console.error('Error during shutdown:', error);
+      }
+    }
+    process.exit(0);
+  }
 
-  // Connect to the transport
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error("Shopify MCP Server running on stdio");
+  // Handle graceful shutdown
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  
+  try {
+    // Validate required environment variables
+    if (!process.env.SHOPIFY_ACCESS_TOKEN || !process.env.MYSHOPIFY_DOMAIN) {
+      throw new Error('Missing required environment variables. Please check README.md for setup instructions.');
+    }
+
+    // Create the MCP server
+    server = new McpServer({
+      name: "shopify-tools",
+      version: "1.0.1",
+      description: "Shopify API integration tools for MCP"
+    });
+
+    // Register all tools
+    registerProductTools(server);
+    registerCustomerTools(server);
+    registerOrderTools(server);
+    registerShopTools(server);
+    registerDiscountTools(server);
+    registerWebhookTools(server);
+
+    // Connect to the transport
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    
+    console.error("Shopify MCP Server running on stdio");
+    console.error(`Connected to shop: ${process.env.MYSHOPIFY_DOMAIN}`);
+    
+    // Keep the process running
+    process.stdin.resume();
+  } catch (error) {
+    console.error("Fatal error during server initialization:", error);
+    process.exit(1);
+  }
 }
 
 // Start the server

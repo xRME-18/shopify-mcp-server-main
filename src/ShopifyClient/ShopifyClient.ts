@@ -2,48 +2,23 @@ import {
   CompleteDraftOrderResponse,
   CreateBasicDiscountCodeInput,
   CreateBasicDiscountCodeResponse,
-  BasicDiscountCodeResponse,
-  CreateDiscountCodeResponse,
   CreateDraftOrderPayload,
-  CreatePriceRuleInput,
-  CreatePriceRuleResponse,
   DraftOrderResponse,
-  GeneralShopifyClientError,
   GetPriceRuleInput,
   GetPriceRuleResponse,
   LoadCollectionsResponse,
   LoadCustomersResponse,
   LoadProductsResponse,
-  LoadStorefrontsResponse,
-  LoadVariantsByIdResponse,
   ProductNode,
-  ProductVariantWithProductDetails,
-  ShopResponse,
-  ShopifyAuthorizationError,
-  ShopifyClientErrorBase,
-  ShopifyCollection,
+  SearchProductsByPriceRangeResponse,
+  ShopifyClientPort,
   ShopifyCollectionsQueryParams,
-  ShopifyCustomCollectionsResponse,
-  ShopifyInputError,
-  ShopifyLoadOrderQueryParams,
-  ShopifyOrder,
-  ShopifyPaymentError,
-  ShopifyProductVariantNotAvailableForSaleError,
-  ShopifyProductVariantNotFoundError,
-  ShopifyRequestError,
-  ShopifySmartCollectionsResponse,
-  ShopifyWebhook,
+  ShopifyOrdersGraphqlQueryParams,
+  ShopifyOrdersGraphqlResponse,
+  ShopifyWebhookTopic,
   getGraphqlShopifyError,
   getGraphqlShopifyUserError,
   getHttpShopifyError,
-  ShopifyWebhookTopic,
-  ShopifyWebhookTopicGraphql,
-  ShopifyClientPort,
-  CustomError,
-  Maybe,
-  ShopifyOrdersGraphqlQueryParams,
-  ShopifyOrdersGraphqlResponse,
-  ShopifyOrderGraphql,
 } from "./ShopifyClientPort.js";
 import { gql } from "graphql-request";
 
@@ -105,9 +80,164 @@ const productFragment = gql`
   ${productVariantsFragment}
 `;
 
+interface GraphQLResponse {
+  data: any;
+  errors?: any[];
+}
+
 export class ShopifyClient implements ShopifyClientPort {
+  async loadProductsByCollectionId(
+    accessToken: string,
+    myshopifyDomain: string,
+    collectionId: string,
+    limit?: number,
+    afterCursor?: string
+  ): Promise<LoadProductsResponse> {
+    const query = gql`
+      query getCollectionProducts($id: ID!, $first: Int, $after: String) {
+        collection(id: $id) {
+          products(first: $first, after: $after) {
+            edges {
+              node {
+                ...Product
+              }
+            }
+          }
+        }
+        shop {
+          currencyCode
+        }
+      }
+      ${productFragment}
+    `;
+
+    const response = await this.graphqlRequest(accessToken, myshopifyDomain, {
+      query,
+      variables: {
+        id: `gid://shopify/Collection/${collectionId}`,
+        first: limit || 10,
+        after: afterCursor
+      }
+    });
+
+    return {
+      products: response.data.collection.products.edges.map((edge: any) => edge.node),
+      currencyCode: response.data.shop.currencyCode
+    };
+  }
+
+  async loadCollections(
+    accessToken: string,
+    myshopifyDomain: string,
+    queryParams: ShopifyCollectionsQueryParams,
+    next?: string
+  ): Promise<LoadCollectionsResponse> {
+    const query = gql`
+      query getCollections($first: Int, $after: String, $query: String) {
+        collections(first: $first, after: $after, query: $query) {
+          edges {
+            node {
+              id
+              handle
+              title
+              description
+              productsCount
+              updatedAt
+              image {
+                src
+                width
+                height
+                altText
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    `;
+
+    const response = await this.graphqlRequest(accessToken, myshopifyDomain, {
+      query,
+      variables: {
+        first: queryParams.limit || 10,
+        after: next,
+        query: queryParams.query
+      }
+    });
+
+    return {
+      collections: response.data.collections.edges.map((edge: any) => ({
+        id: this.getIdFromGid(edge.node.id),
+        handle: edge.node.handle,
+        title: edge.node.title,
+        description: edge.node.description,
+        products_count: edge.node.productsCount,
+        updated_at: edge.node.updatedAt,
+        image: edge.node.image
+      })),
+      next: response.data.collections.pageInfo.hasNextPage ? 
+        response.data.collections.pageInfo.endCursor : undefined
+    };
+  }
+
+  createDraftOrder(accessToken: string, shop: string, draftOrderData: CreateDraftOrderPayload, idempotencyKey: string): Promise<DraftOrderResponse> {
+    throw new Error("Method not implemented.");
+  }
+  completeDraftOrder(accessToken: string, shop: string, draftOrderId: string, variantId: string): Promise<CompleteDraftOrderResponse> {
+    throw new Error("Method not implemented.");
+  }
+  createBasicDiscountCode(accessToken: string, shop: string, discountInput: CreateBasicDiscountCodeInput): Promise<CreateBasicDiscountCodeResponse> {
+    throw new Error("Method not implemented.");
+  }
+  getPriceRule(accessToken: string, shop: string, input: GetPriceRuleInput): Promise<GetPriceRuleResponse> {
+    throw new Error("Method not implemented.");
+  }
   private readonly logger = console;
   private SHOPIFY_API_VERSION = "2024-04";
+  private rateLimitDelay = 500; // Minimum delay between requests in ms
+  private lastRequestTime = 0;
+
+  private async enforceRateLimit() {
+    const now = Date.now();
+    const timeSinceLastRequest = now - this.lastRequestTime;
+    
+    if (timeSinceLastRequest < this.rateLimitDelay) {
+      await new Promise(resolve => 
+        setTimeout(resolve, this.rateLimitDelay - timeSinceLastRequest)
+      );
+    }
+    
+    this.lastRequestTime = Date.now();
+  }
+
+  private async graphqlRequest(accessToken: string, shop: string, params: any): Promise<GraphQLResponse> {
+    await this.enforceRateLimit();
+    
+    const url = `https://${shop}/admin/api/${this.SHOPIFY_API_VERSION}/graphql.json`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Shopify-Access-Token': accessToken,
+      },
+      body: JSON.stringify(params),
+    });
+
+    if (!response.ok) {
+      throw getHttpShopifyError(await response.json(), response.status);
+    }
+
+    const result = await response.json();
+    
+    if (result.errors) {
+      throw getGraphqlShopifyError(result.errors, response.status);
+    }
+
+    return result;
+  }
 
   async manageInventory(
     accessToken: string,
@@ -702,5 +832,212 @@ export class ShopifyClient implements ShopifyClientPort {
     }
 
     return response.data.productBulkUpdate.products;
+  }
+
+  async searchProductsByPriceRange(
+    accessToken: string, 
+    shop: string,
+    params: {
+      minPrice: number;
+      maxPrice: number;
+      currencyCode?: string;
+      limit?: number;
+    }
+  ): Promise<SearchProductsByPriceRangeResponse> {
+    const query = gql`
+      query getProductsByPriceRange($query: String!, $first: Int!) {
+        products(query: $query, first: $first) {
+          edges {
+            node {
+              ...Product
+            }
+          }
+        }
+        shop {
+          currencyCode
+        }
+      }
+      ${productFragment}
+    `;
+
+    const response = await this.graphqlRequest(accessToken, shop, {
+      query,
+      variables: {
+        query: `variants.price:>=${params.minPrice} AND variants.price:<=${params.maxPrice}`,
+        first: params.limit || 10
+      }
+    });
+
+    return {
+      products: response.data.products.edges.map((edge: any) => edge.node),
+      currencyCode: response.data.shop.currencyCode
+    };
+  }
+
+  async loadOrders(
+    accessToken: string,
+    shop: string,
+    queryParams: ShopifyOrdersGraphqlQueryParams
+  ): Promise<ShopifyOrdersGraphqlResponse> {
+    const query = gql`
+      query getOrders($first: Int, $after: String, $query: String, $sortKey: OrderSortKeys, $reverse: Boolean) {
+        orders(first: $first, after: $after, query: $query, sortKey: $sortKey, reverse: $reverse) {
+          edges {
+            node {
+              id
+              name
+              createdAt
+              displayFinancialStatus
+              email
+              totalPriceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+                presentmentMoney {
+                  amount
+                  currencyCode
+                }
+              }
+              customer {
+                id
+                email
+              }
+              lineItems(first: 10) {
+                nodes {
+                  id
+                  title
+                  quantity
+                  originalTotalSet {
+                    shopMoney {
+                      amount
+                      currencyCode
+                    }
+                  }
+                  variant {
+                    id
+                    title
+                    sku
+                    price
+                  }
+                }
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    `;
+
+    const response = await this.graphqlRequest(accessToken, shop, {
+      query,
+      variables: queryParams
+    });
+
+    return {
+      orders: response.data.orders.edges.map((edge: any) => edge.node),
+      pageInfo: response.data.orders.pageInfo
+    };
+  }
+
+  async loadCustomers(
+    accessToken: string,
+    myshopifyDomain: string,
+    limit?: number,
+    next?: string
+  ): Promise<LoadCustomersResponse> {
+    const query = gql`
+      query getCustomers($first: Int, $after: String) {
+        customers(first: $first, after: $after) {
+          edges {
+            node {
+              id
+              email
+              firstName
+              lastName
+              phone
+              ordersCount
+              tags
+              defaultAddress {
+                countryCodeV2
+              }
+            }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
+      }
+    `;
+
+    const response = await this.graphqlRequest(accessToken, myshopifyDomain, {
+      query,
+      variables: {
+        first: limit || 10,
+        after: next
+      }
+    });
+
+    return {
+      customers: response.data.customers.edges.map((edge: any) => ({
+        id: this.getIdFromGid(edge.node.id),
+        email: edge.node.email,
+        first_name: edge.node.firstName,
+        last_name: edge.node.lastName,
+        phone: edge.node.phone,
+        orders_count: edge.node.ordersCount,
+        tags: edge.node.tags,
+        currency: edge.node.defaultAddress?.countryCodeV2
+      })),
+      next: response.data.customers.pageInfo.hasNextPage ? 
+        response.data.customers.pageInfo.endCursor : undefined
+    };
+  }
+
+  async loadProducts(
+    accessToken: string,
+    myshopifyDomain: string,
+    searchTitle: string | null,
+    limit?: number,
+    afterCursor?: string
+  ): Promise<LoadProductsResponse> {
+    const query = gql`
+      query getProducts($query: String, $first: Int, $after: String) {
+        products(query: $query, first: $first, after: $after) {
+          edges {
+            node {
+              ...Product
+            }
+          }
+        }
+        shop {
+          currencyCode
+        }
+      }
+      ${productFragment}
+    `;
+
+    const response = await this.graphqlRequest(accessToken, myshopifyDomain, {
+      query,
+      variables: {
+        query: searchTitle,
+        first: limit || 10,
+        after: afterCursor
+      }
+    });
+
+    return {
+      products: response.data.products.edges.map((edge: any) => edge.node),
+      currencyCode: response.data.shop.currencyCode
+    };
+  }
+
+  getIdFromGid(gid: string): string {
+    const parts = gid.split('/');
+    return parts[parts.length - 1];
   }
 }
