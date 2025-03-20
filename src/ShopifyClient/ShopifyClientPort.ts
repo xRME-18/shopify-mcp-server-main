@@ -266,10 +266,17 @@ export type CompleteDraftOrderResponse = {
 
 // Shop types
 export type ShopResponse = {
-  data: {
-    shop: {
-      shipsToCountries: string[];
+  shop: {
+    id: string;
+    name: string;
+    email?: string;
+    url?: string;
+    myshopifyDomain?: string;
+    primaryDomain?: {
+      url: string;
+      host: string;
     };
+    shipsToCountries?: string[];
   };
 };
 
@@ -570,6 +577,62 @@ export type ShopifyWebhook = {
   topic: ShopifyWebhookTopic;
 };
 
+// Add this type definition for OrderResponse
+export type OrderResponse = {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  totalPrice: string;
+  subtotalPrice: string;
+  totalTax: string;
+  processedAt: string;
+  cancelledAt: string | null;
+  fulfillmentStatus: string | null;
+  financialStatus: string | null;
+  customer: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
+  shippingAddress: {
+    address1: string;
+    address2: string | null;
+    city: string;
+    country: string;
+    provinceCode: string | null;
+    zip: string;
+    phone: string | null;
+  } | null;
+  lineItems: {
+    edges: Array<{
+      node: {
+        id: string;
+        title: string;
+        quantity: number;
+        variant: {
+          id: string;
+          title: string;
+          price: string;
+          sku: string | null;
+        } | null;
+      };
+    }>;
+  };
+};
+
+// Add this type definition for WebhookResponse
+export type WebhookResponse = {
+  webhook: {
+    id: string;
+    topic: string;
+    endpoint: {
+      callbackUrl: string;
+    };
+  };
+};
+
 // The main client interface
 export interface ShopifyClientPort {
   searchProductsByPriceRange(
@@ -780,4 +843,32 @@ export interface ShopifyClientPort {
       tags?: string[];
     }>
   ): Promise<ProductNode[]>;
+
+  /**
+   * Adds tags to a customer
+   * @param accessToken Shopify access token
+   * @param shop The shop domain
+   * @param tags Array of tags to add
+   * @param customerId ID of the customer to tag
+   * @returns Promise resolving to a boolean indicating success
+   */
+  tagCustomer(
+    accessToken: string,
+    shop: string,
+    tags: string[],
+    customerId: string
+  ): Promise<boolean>;
+
+  loadOrder(
+    accessToken: string,
+    shop: string,
+    orderId: string
+  ): Promise<OrderResponse>;
+
+  subscribeWebhook(
+    accessToken: string,
+    shop: string,
+    topic: string,
+    callbackUrl: string
+  ): Promise<WebhookResponse>;
 }

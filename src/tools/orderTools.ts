@@ -116,7 +116,7 @@ export function registerOrderTools(server: McpServer): void {
         const order = await client.loadOrder(
           config.accessToken,
           config.shopDomain,
-          { orderId }
+          orderId
         );
         
         return {
@@ -134,61 +134,61 @@ export function registerOrderTools(server: McpServer): void {
   );
 
   // Create Draft Order Tool
-  server.tool(
-    "create-draft-order",
-    "Create a draft order",
-    {
-      lineItems: z.array(
-        z.object({
-          variantId: z.string().describe("ID of the variant"),
-          quantity: z.number().describe("Quantity of the variant"),
-        })
-      ).describe("Array of items with variantId and quantity"),
-      email: z.string().describe("Customer email"),
-      shippingAddress: z.object({
-        address1: z.string().describe("Address line 1"),
-        address2: z.string().optional().describe("Address line 2"),
-        countryCode: z.string().describe("Country code (e.g., US, CA)"),
-        firstName: z.string().describe("First name"),
-        lastName: z.string().describe("Last name"),
-        zip: z.string().describe("ZIP/Postal code"),
-        city: z.string().describe("City"),
-        country: z.string().describe("Country name"),
-        province: z.string().optional().describe("Province/State name"),
-        provinceCode: z.string().optional().describe("Province/State code"),
-        phone: z.string().optional().describe("Phone number"),
-      }).describe("Shipping address details"),
-      note: z.string().optional().describe("Optional note for the order"),
-    },
-    async ({ lineItems, email, shippingAddress, note }: CreateDraftOrderInput) => {
-      const client = new ShopifyClient();
-      try {
-        const draftOrder = await client.createDraftOrder(
-          config.accessToken,
-          config.shopDomain,
-          {
-            lineItems,
-            email,
-            shippingAddress,
-            billingAddress: shippingAddress, // Use shipping address as billing address
-            tags: "",
-            note: note || "",
-          }
-        );
+  // server.tool(
+  //   "create-draft-order",
+  //   "Create a draft order",
+  //   {
+  //     lineItems: z.array(
+  //       z.object({
+  //         variantId: z.string().describe("ID of the variant"),
+  //         quantity: z.number().describe("Quantity of the variant"),
+  //       })
+  //     ).describe("Array of items with variantId and quantity"),
+  //     email: z.string().describe("Customer email"),
+  //     shippingAddress: z.object({
+  //       address1: z.string().describe("Address line 1"),
+  //       address2: z.string().optional().describe("Address line 2"),
+  //       countryCode: z.string().describe("Country code (e.g., US, CA)"),
+  //       firstName: z.string().describe("First name"),
+  //       lastName: z.string().describe("Last name"),
+  //       zip: z.string().describe("ZIP/Postal code"),
+  //       city: z.string().describe("City"),
+  //       country: z.string().describe("Country name"),
+  //       province: z.string().optional().describe("Province/State name"),
+  //       provinceCode: z.string().optional().describe("Province/State code"),
+  //       phone: z.string().optional().describe("Phone number"),
+  //     }).describe("Shipping address details"),
+  //     note: z.string().optional().describe("Optional note for the order"),
+  //   },
+  //   async ({ lineItems, email, shippingAddress, note }: CreateDraftOrderInput) => {
+  //     const client = new ShopifyClient();
+  //     try {
+  //       const draftOrder = await client.createDraftOrder(
+  //         config.accessToken,
+  //         config.shopDomain,
+  //         {
+  //           lineItems,
+  //           email,
+  //           shippingAddress,
+  //           billingAddress: shippingAddress, // Use shipping address as billing address
+  //           tags: "",
+  //           note: note || "",
+  //         }
+  //       );
         
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Successfully created draft order:\nID: ${draftOrder.draftOrderId}\nName: ${draftOrder.draftOrderName}`,
-            },
-          ],
-        };
-      } catch (error) {
-        return handleError("Failed to create draft order", error);
-      }
-    }
-  );
+  //       return {
+  //         content: [
+  //           {
+  //             type: "text",
+  //             text: `Successfully created draft order:\nID: ${draftOrder.draftOrderId}\nName: ${draftOrder.draftOrderName}`,
+  //           },
+  //         ],
+  //       };
+  //     } catch (error) {
+  //       return handleError("Failed to create draft order", error);
+  //     }
+  //   }
+  // );
 
   // Complete Draft Order Tool
   server.tool(

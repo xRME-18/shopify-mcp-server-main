@@ -8,8 +8,9 @@ import { CustomError } from "../ShopifyClient/ShopifyClientPort.js";
  * Standard error response format for MCP tools
  */
 export interface ErrorResponse {
-  content: { type: "text"; text: string }[];
-  isError: boolean;
+  content: { type: "text"; text: string; }[];
+  isError?: boolean;
+  [key: string]: unknown;
 }
 
 /**
@@ -72,9 +73,7 @@ export function handleError(
  * @param data The data to include in the response
  * @returns Formatted success response for MCP
  */
-export function formatSuccess(data: any): {
-  content: { type: "text"; text: string }[];
-} {
+export function formatSuccess<T>(data: T): { content: { type: "text"; text: string }[], [key: string]: unknown } {
   return {
     content: [{ type: "text", text: JSON.stringify(data, null, 2) }],
   };

@@ -22,13 +22,9 @@ export function registerShopTools(server: McpServer): void {
   // Get Collections Tool
   server.tool(
     "get-collections",
-    "Get all collections",
+    "Get collections from the shop",
     {
-      limit: z
-        .number()
-        .optional()
-        .default(10)
-        .describe("Maximum number of collections to return"),
+      limit: z.number().optional().describe("Maximum number of collections to return"),
       name: z.string().optional().describe("Filter collections by name"),
     },
     async ({ limit, name }: GetCollectionsInput) => {
@@ -37,7 +33,8 @@ export function registerShopTools(server: McpServer): void {
         const collections = await client.loadCollections(
           config.accessToken,
           config.shopDomain,
-          { limit, name }
+          { query: "", limit: limit || 10, name: name, sinceId: "" },
+
         );
         return formatSuccess(collections);
       } catch (error) {
@@ -66,21 +63,21 @@ export function registerShopTools(server: McpServer): void {
   );
 
   // Get Shop Details Tool
-  server.tool(
-    "get-shop-details",
-    "Get extended shop details including shipping countries",
-    {},
-    async () => {
-      const client = new ShopifyClient();
-      try {
-        const shopDetails = await client.loadShopDetail(
-          config.accessToken,
-          config.shopDomain
-        );
-        return formatSuccess(shopDetails);
-      } catch (error) {
-        return handleError("Failed to retrieve extended shop details", error);
-      }
-    }
-  );
+  // server.tool(
+  //   "get-shop-details",
+  //   "Get extended shop details including shipping countries",
+  //   {},
+  //   async () => {
+  //     const client = new ShopifyClient();
+  //     try {
+  //       const shopDetails = await client.loadShopDetail(
+  //         config.accessToken,
+  //         config.shopDomain
+  //       );
+  //       return formatSuccess(shopDetails);
+  //     } catch (error) {
+  //       return handleError("Failed to retrieve extended shop details", error);
+  //     }
+  //   }
+  // );
 } 

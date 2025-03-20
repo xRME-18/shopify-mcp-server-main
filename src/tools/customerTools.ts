@@ -56,7 +56,7 @@ export function registerCustomerTools(server: McpServer): void {
       customerId: z.string().describe("Customer ID to tag"),
       tags: z.array(z.string()).describe("Tags to add to the customer"),
     },
-    async ({ customerId, tags }: TagCustomerInput) => {
+    async ({ customerId, tags }, extra) => {
       const client = new ShopifyClient();
       try {
         const success = await client.tagCustomer(

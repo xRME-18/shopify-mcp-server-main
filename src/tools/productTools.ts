@@ -1,4 +1,9 @@
 import { ProductVariant, ShopifyClientPort, ProductNode } from "../ShopifyClient/ShopifyClientPort.js";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
+import { ShopifyClient } from "../ShopifyClient/ShopifyClient.js";
+import { config } from "../config/index.js";
+import { handleError, formatSuccess } from "../utils/errorHandler.js";
 
 export async function getVariantPrice(
   client: ShopifyClientPort,
@@ -47,7 +52,7 @@ export async function getProductFullDetails(
     myshopifyDomain,
     null,
     1,
-    null
+    undefined
   );
 
   const product = response.products.find((p: ProductNode) => p.id === productId);
@@ -231,4 +236,59 @@ export async function generateProductReport(
       })
     }))
   };
+}
+
+/**
+ * Registers product-related tools with the MCP server
+ * @param server The MCP server instance
+ */
+export function registerProductTools(server: McpServer): void {
+  // Get Products Tool
+  server.tool(
+    "get-products",
+    "Get Shopify products with support for pagination and search",
+    {
+      limit: z.number().optional().describe("Maximum number of products to return"),
+      next: z.string().optional().describe("Next page cursor"),
+      query: z.string().optional().describe("Search query to filter products"),
+    },
+    async ({ limit, next, query }, extra) => {
+      const client = new ShopifyClient();
+      try {
+        const products = await client.loadProducts(
+          config.accessToken,
+          config.shopDomain,
+          query || null,
+          limit,
+          next
+        );
+        return formatSuccess(products);
+      } catch (error) {
+        return handleError("Failed to retrieve products", error);
+      }
+    }
+  );
+
+  // Get Product Details Tool
+  server.tool(
+    "get-product-details",
+    "Get detailed information about a specific product",
+    {
+      productId: z.string().describe("ID of the product to retrieve details for"),
+    },
+    async ({ productId }, extra) => {
+      const client = new ShopifyClient();
+      try {
+        const result = await getProductFullDetails(
+          client,
+          config.accessToken,
+          config.shopDomain,
+          productId
+        );
+        return formatSuccess(result);
+      } catch (error) {
+        return handleError(`Failed to retrieve product details for ${productId}`, error);
+      }
+    }
+  );
 }

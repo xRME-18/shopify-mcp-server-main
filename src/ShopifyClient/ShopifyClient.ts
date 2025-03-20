@@ -9,13 +9,17 @@ import {
   LoadCollectionsResponse,
   LoadCustomersResponse,
   LoadProductsResponse,
+  LoadVariantsByIdResponse,
+  OrderResponse,
   ProductNode,
   SearchProductsByPriceRangeResponse,
+  ShopResponse,
   ShopifyClientPort,
   ShopifyCollectionsQueryParams,
   ShopifyOrdersGraphqlQueryParams,
   ShopifyOrdersGraphqlResponse,
   ShopifyWebhookTopic,
+  WebhookResponse,
   getGraphqlShopifyError,
   getGraphqlShopifyUserError,
   getHttpShopifyError,
@@ -119,6 +123,7 @@ export class ShopifyClient implements ShopifyClientPort {
         after: afterCursor
       }
     });
+    console.log(response);
 
     return {
       products: response.data.collection.products.edges.map((edge: any) => edge.node),
@@ -1036,8 +1041,258 @@ export class ShopifyClient implements ShopifyClientPort {
     };
   }
 
+  async loadProductsByIds(
+    accessToken: string,
+    myshopifyDomain: string,
+    productIds: string[]
+  ): Promise<LoadProductsResponse> {
+    const query = gql`
+      query getProductsByIds($ids: [ID!]!) {
+        nodes(ids: $ids) {
+          ... on Product {
+            ...Product
+          }
+        }
+      }
+      ${productFragment}
+    `;
+
+    const response = await this.graphqlRequest(accessToken, myshopifyDomain, {
+      query,
+      variables: { ids: productIds }
+    });
+
+    return {
+      products: response.data.nodes.map((node: any) => node),
+      currencyCode: response.data.shop.currencyCode
+    };
+  }
+
+  async loadVariantsByIds(
+    accessToken: string,
+    myshopifyDomain: string,
+    variantIds: string[]
+  ): Promise<LoadVariantsByIdResponse> {
+    const query = gql`
+      query getVariantsByIds($ids: [ID!]!) {
+        nodes(ids: $ids) {
+          ... on ProductVariant {
+            ...ProductVariant
+          }
+        }
+      }
+      ${productVariantsFragment}
+    `;
+
+    const response = await this.graphqlRequest(accessToken, myshopifyDomain, {
+      query,
+      variables: { ids: variantIds }
+    });
+
+    return {
+      variants: response.data.nodes.map((node: any) => node),
+      currencyCode: response.data.shop.currencyCode
+    };
+  }
+  
+
   getIdFromGid(gid: string): string {
     const parts = gid.split('/');
     return parts[parts.length - 1];
+  }
+
+  /**
+   * Adds tags to a customer
+   * @param accessToken Shopify access token
+   * @param shop The shop domain
+   * @param tags Array of tags to add
+   * @param customerId ID of the customer to tag
+   * @returns Promise resolving to a boolean indicating success
+   */
+  async tagCustomer(
+    accessToken: string,
+    shop: string,
+    tags: string[],
+    customerId: string
+  ): Promise<boolean> {
+    try {
+      const mutation = gql`
+        mutation customerUpdate($input: CustomerInput!) {
+          customerUpdate(input: $input) {
+            customer {
+              id
+              tags
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }
+      `;
+
+      const variables = {
+        input: {
+          id: customerId,
+          tags: tags
+        }
+      };
+
+      const response = await this.graphqlRequest(accessToken, shop, {
+        query: mutation,
+        variables,
+      });
+
+      if (response.data.customerUpdate.userErrors.length > 0) {
+        console.error('Error updating customer tags:', response.data.customerUpdate.userErrors);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Error tagging customer:', error);
+      return false;
+    }
+  }
+
+  async loadOrder(
+    accessToken: string,
+    shop: string,
+    orderId: string
+  ): Promise<OrderResponse> {
+    const query = gql`
+      query getOrder($id: ID!) {
+        order(id: $id) {
+          id
+          name
+          email
+          phone
+          totalPrice
+          subtotalPrice
+          totalTax
+          processedAt
+          cancelledAt
+          fulfillmentStatus
+          financialStatus
+          customer {
+            id
+            firstName
+            lastName
+            email
+          }
+          shippingAddress {
+            address1
+            address2
+            city
+            country
+            provinceCode
+            zip
+            phone
+          }
+          lineItems(first: 50) {
+            edges {
+              node {
+                id
+                title
+                quantity
+                variant {
+                  id
+                  title
+                  price
+                  sku
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const variables = {
+      id: orderId
+    };
+
+    const response = await this.graphqlRequest(accessToken, shop, {
+      query,
+      variables,
+    });
+
+    return response.data.order
+    
+  }
+
+  async loadShop(
+    accessToken: string,
+    shop: string
+  ): Promise<ShopResponse> {
+    const query = gql`
+      query {
+        shop {
+          id
+          name
+          email
+          url
+          myshopifyDomain
+          primaryDomain {
+            url
+            host
+          }
+        }
+      }
+    `;
+
+    const response = await this.graphqlRequest(accessToken, shop, {
+      query,
+    });
+
+    return {
+      shop: response.data.shop
+    };
+  }
+
+  async subscribeWebhook(
+    accessToken: string,
+    shop: string,
+    topic: string,
+    callbackUrl: string
+  ): Promise<WebhookResponse> {
+    const mutation = gql`
+      mutation webhookSubscriptionCreate($topic: WebhookSubscriptionTopic!, $webhookSubscription: WebhookSubscriptionInput!) {
+        webhookSubscriptionCreate(topic: $topic, webhookSubscription: $webhookSubscription) {
+          webhookSubscription {
+            id
+            topic
+            endpoint {
+              callbackUrl
+            }
+          }
+          userErrors {
+            field
+            message
+          }
+        }
+      }
+    `;
+
+    const variables = {
+      topic,
+      webhookSubscription: {
+        callbackUrl,
+        format: "JSON"
+      }
+    };
+
+    const response = await this.graphqlRequest(accessToken, shop, {
+      query: mutation,
+      variables,
+    });
+
+    if (response.data.webhookSubscriptionCreate.userErrors.length > 0) {
+      throw new Error(`Failed to subscribe to webhook: ${JSON.stringify(response.data.webhookSubscriptionCreate.userErrors)}`);
+    }
+
+    return {
+      webhook: response.data.webhookSubscriptionCreate.webhookSubscription
+    };
   }
 }
