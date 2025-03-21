@@ -123,7 +123,7 @@ export class ShopifyClient implements ShopifyClientPort {
         after: afterCursor
       }
     });
-    console.log(response);
+    console.error(response);
 
     return {
       products: response.data.collection.products.edges.map((edge: any) => edge.node),
@@ -146,7 +146,9 @@ export class ShopifyClient implements ShopifyClientPort {
               handle
               title
               description
-              productsCount
+              productsCount {
+                count
+              }
               updatedAt
               image {
                 src
@@ -238,8 +240,10 @@ export class ShopifyClient implements ShopifyClientPort {
     const result = await response.json();
     
     if (result.errors) {
+      // console.error("GraphQL Errors:", JSON.stringify(result.errors, null, 2));
       throw getGraphqlShopifyError(result.errors, response.status);
     }
+
 
     return result;
   }
@@ -964,7 +968,6 @@ export class ShopifyClient implements ShopifyClientPort {
               firstName
               lastName
               phone
-              ordersCount
               tags
               defaultAddress {
                 countryCodeV2
@@ -994,7 +997,7 @@ export class ShopifyClient implements ShopifyClientPort {
         first_name: edge.node.firstName,
         last_name: edge.node.lastName,
         phone: edge.node.phone,
-        orders_count: edge.node.ordersCount,
+        orders: edge.node.orders,
         tags: edge.node.tags,
         currency: edge.node.defaultAddress?.countryCodeV2
       })),
@@ -1053,6 +1056,9 @@ export class ShopifyClient implements ShopifyClientPort {
             ...Product
           }
         }
+        shop {
+          currencyCode
+        }
       }
       ${productFragment}
     `;
@@ -1064,7 +1070,7 @@ export class ShopifyClient implements ShopifyClientPort {
 
     return {
       products: response.data.nodes.map((node: any) => node),
-      currencyCode: response.data.shop.currencyCode
+      currencyCode: response.data?.shop?.currencyCode || 'UNKNOWN'
     };
   }
 
@@ -1077,11 +1083,15 @@ export class ShopifyClient implements ShopifyClientPort {
       query getVariantsByIds($ids: [ID!]!) {
         nodes(ids: $ids) {
           ... on ProductVariant {
-            ...ProductVariant
+            ...ProductVariants
           }
+        }
+        shop {
+          currencyCode
         }
       }
       ${productVariantsFragment}
+      ${productImagesFragment}
     `;
 
     const response = await this.graphqlRequest(accessToken, myshopifyDomain, {

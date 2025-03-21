@@ -461,7 +461,7 @@ export class ShopifyAuthorizationError extends ShopifyClientErrorBase {
   static code = "SHOPIFY_CLIENT.AUTHORIZATION_ERROR";
 
   constructor(payload: CustomErrorPayload = {}) {
-    super("Shopify authorization error", ShopifyAuthorizationError.code, payload);
+    console.error("Authorization Error: ", payload.innerError, payload.contextData); super("Shopify authorization error", ShopifyAuthorizationError.code, payload);
   }
 }
 
