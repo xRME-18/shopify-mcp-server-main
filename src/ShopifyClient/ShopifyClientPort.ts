@@ -11,7 +11,9 @@ export type LoadCustomersResponse = {
     first_name?: string;
     last_name?: string;
     phone?: string;
-    orders_count?: number;
+    orders?: Array<{
+      id: string;
+    }>;
     tags?: string;
     currency?: string;
   }>;
@@ -588,8 +590,8 @@ export type OrderResponse = {
   totalTax: string;
   processedAt: string;
   cancelledAt: string | null;
-  fulfillmentStatus: string | null;
-  financialStatus: string | null;
+  displayFulfillmentStatus: string | null;
+  displayFinancialStatus: string | null;
   customer: {
     id: string;
     firstName: string;

@@ -968,6 +968,13 @@ export class ShopifyClient implements ShopifyClientPort {
               firstName
               lastName
               phone
+              orders(first: 5) {
+                edges {
+                  node {
+                    id
+                  }
+                }
+              }
               tags
               defaultAddress {
                 countryCodeV2
@@ -1182,8 +1189,8 @@ export class ShopifyClient implements ShopifyClientPort {
           totalTax
           processedAt
           cancelledAt
-          fulfillmentStatus
-          financialStatus
+          displayFulfillmentStatus
+          displayFinancialStatus
           customer {
             id
             firstName
